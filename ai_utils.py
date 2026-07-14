@@ -340,56 +340,41 @@ def solve_problem_text(ocr_text: str, target_subjects: Optional[List[str]] = Non
     
     subject_list_str = "、".join(target_subjects) if target_subjects else "任意学科"
     
-    # 优化后的 System Prompt
-    system_prompt = """你是一个高效的数学解题助手。请直接输出解题步骤和 JSON 结果，不要进行寒暄，不要输出"好的"等废话。"""
-    
-    # 用户 Prompt - 强调 JSON 格式、LaTeX 规范和分行格式（无步骤编号）
-    solver_prompt = f"""请分析并解决以下题目：{ocr_text}
+    # 优化后的 System Prompt：根据题型自适应解析风格
+    system_prompt = """你是一个全学科智能助教。你的回答必须简洁精炼，根据题型灵活调整解析方式：
+- 翻译/英语题：逐词拆解关键单词和短语 → 语法结构分析 → 翻译要点
+- 数学/物理/化学题：逐步计算推导，公式用LaTeX
+- 代码/数据结构题：算法思路 → 关键步骤推演 → 结果
+- 文科/论述题：知识点梳理 → 逻辑分析 → 结论
+每步2-3句话，整体不超过200字。不寒暄不废话。"""
 
-要求：
-1. 思路清晰，步骤严谨
-2. **所有数学公式必须使用 LaTeX 格式，且严格遵循以下规则：**
-   - 独立公式（单独成行）必须用 $$ 包裹，例如：$$x = \\frac{{-b \\pm \\sqrt{{b^2-4ac}}}}{{2a}}$$
-   - 行内公式（在文本中）必须用 $ 包裹，例如：根据公式 $E = mc^2$ 可得
-   - **绝对禁止使用** `\\[` 和 `\\]` 或 `\\(` 和 `\\)`格式
-   - **绝对禁止在公式内使用中文标点符号**（如：，、。、：等），必须使用英文半角标点
-3. **解题步骤必须分行显示，每个逻辑步骤单独成段，格式要求：**
-   - 不要添加"步骤1"、"步骤2"等编号标签
-   - 每个解题步骤之间用两个换行符 \\n\\n 分隔
-   - 直接陈述解题过程，自然流畅
-4. 最后给出明确的答案
-5. 判断题目所属的学科
-6. 提取题目的主题/标签
-7. 列出涉及的知识点
+    # 用户 Prompt - 精简版，保留核心格式要求
+    solver_prompt = f"""题目：{ocr_text}
+
+请解题并输出JSON。必须遵守：
+1. 根据题型选择合适的解析风格，不要一刀切
+2. 数学公式用LaTeX：独立公式$$...$$，行内公式$...$。禁用\\[ \\] \\( \\)。公式内只用英文标点。上标下标必须用花括号包裹（如$x^{2}$而不是$x^2$），确保正确渲染
+3. 步骤间用\\n\\n分隔，不加步骤编号
+4. 回答简洁精炼
+5. knowledge_points要具体细化（如"哈希表/散列查找"而非仅"数据结构"），便于分类检索
 {subject_hint}
 
-**重要：你必须只输出一个纯 JSON 对象，不要包含任何 Markdown 代码块标记（如 ```json 或 ```），不要包含任何其他文字说明。**
-
-JSON 格式必须严格如下：
+输出纯JSON（禁用```json标记）：
 {{
-    "analysis": "第一个解题步骤的内容...\\n\\n第二个解题步骤的内容...\\n\\n第三个解题步骤的内容...\\n\\n**答案：** xxx",
+    "analysis": "步骤内容\\n\\n步骤内容\\n\\n**答案：** xxx",
     "answer": "最终答案",
-    "subject": "学科名称（必须从以下列表中选择：{subject_list_str}）",
-    "topic": "主题标签",
-    "knowledge_points": ["知识点1", "知识点2", "知识点3"]
-}}
+    "subject": "{subject_list_str}",
+    "topic": "标签",
+    "knowledge_points": ["具体知识点1", "具体知识点2"]
+}}"""
 
-注意：
-- analysis 字段必须按逻辑步骤分段，每段之间用 \\n\\n 分隔，不要添加步骤编号
-- answer 字段是最终答案
-- subject 字段必须是字符串，从给定的学科列表中选择
-- topic 字段是主题标签（字符串）
-- knowledge_points 字段是字符串数组
-
-现在请直接输出 JSON，不要任何其他内容："""
-    
     response = client.chat.completions.create(
         model=SOLVER_MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": solver_prompt}
         ],
-        max_tokens=3000,
+        max_tokens=1500,
         temperature=0.1,
         timeout=90
     )
@@ -464,21 +449,21 @@ JSON 格式必须严格如下：
     return solution, knowledge_points, subject, topic
 
 
-def solve_problem_text_stream(ocr_text: str, target_subjects: Optional[List[str]] = None, 
+def solve_problem_text_stream(ocr_text: str, target_subjects: Optional[List[str]] = None,
                               user_identity: Optional[str] = None):
     """
     Stage 2: 解题 - 流式版本，逐字返回解题过程
-    
+
     参数:
         ocr_text: OCR 识别到的题目文本
         target_subjects: 目标学科列表
         user_identity: 用户身份（用于精确分类）
-    
+
     返回:
         Generator[str] - 逐块返回解题过程文本
     """
     client = get_client()
-    
+
     subject_hint = ""
     if target_subjects:
         identity_note = f"用户身份是{user_identity}。" if user_identity else ""
@@ -486,52 +471,37 @@ def solve_problem_text_stream(ocr_text: str, target_subjects: Optional[List[str]
         subject_hint = f"{identity_note}请必须将题目归类为以下列表中的一项：{subject_list}。\n"
         if "大学" in (user_identity or ""):
             subject_hint += "例如：如果是经济学题目，且用户是大学生，请归类为'专业课(经管)'，**绝不要**归类为'高等数学'或'语文'。如果是法学、管理学相关题目，请选择对应学科，不要归类为专业课(其他)。\n"
-    
-    subject_list_str = "、".join(target_subjects) if target_subjects else "任意学科"
-    
-    # 优化后的 System Prompt
-    system_prompt = """你是一个高效的数学解题助手。请直接输出解题步骤和 JSON 结果，不要进行寒暄，不要输出"好的"等废话。"""
-    
-    # 用户 Prompt - 强调 JSON 格式、LaTeX 规范和分行格式（无步骤编号）
-    solver_prompt = f"""请分析并解决以下题目：{ocr_text}
 
-要求：
-1. 思路清晰，步骤严谨
-2. **所有数学公式必须使用 LaTeX 格式，且严格遵循以下规则：**
-   - 独立公式（单独成行）必须用 $$ 包裹，例如：$$x = \\frac{{-b \\pm \\sqrt{{b^2-4ac}}}}{{2a}}$$
-   - 行内公式（在文本中）必须用 $ 包裹，例如：根据公式 $E = mc^2$ 可得
-   - **绝对禁止使用** `\\[` 和 `\\]` 或 `\\(` 和 `\\)`格式
-   - **绝对禁止在公式内使用中文标点符号**（如：，、。、：等），必须使用英文半角标点
-3. **解题步骤必须分行显示，每个逻辑步骤单独成段，格式要求：**
-   - 不要添加"步骤1"、"步骤2"等编号标签
-   - 每个解题步骤之间用两个换行符 \\n\\n 分隔
-   - 直接陈述解题过程，自然流畅
-4. 最后给出明确的答案
-5. 判断题目所属的学科
-6. 提取题目的主题/标签
-7. 列出涉及的知识点
+    subject_list_str = "、".join(target_subjects) if target_subjects else "任意学科"
+
+    # 优化后的 System Prompt：根据题型自适应解析风格
+    system_prompt = """你是一个全学科智能助教。你的回答必须简洁精炼，根据题型灵活调整解析方式：
+- 翻译/英语题：逐词拆解关键单词和短语 → 语法结构分析 → 翻译要点
+- 数学/物理/化学题：逐步计算推导，公式用LaTeX
+- 代码/数据结构题：算法思路 → 关键步骤推演 → 结果
+- 文科/论述题：知识点梳理 → 逻辑分析 → 结论
+每步2-3句话，整体不超过200字。不寒暄不废话。"""
+
+    # 用户 Prompt - 精简版，保留核心格式要求
+    solver_prompt = f"""题目：{ocr_text}
+
+请解题并输出JSON。必须遵守：
+1. 根据题型选择合适的解析风格，不要一刀切
+2. 数学公式用LaTeX：独立公式$$...$$，行内公式$...$。禁用\\[ \\] \\( \\)。公式内只用英文标点。上标下标必须用花括号包裹（如$x^{2}$而不是$x^2$），确保正确渲染
+3. 步骤间用\\n\\n分隔，不加步骤编号
+4. 回答简洁精炼
+5. knowledge_points要具体细化（如"哈希表/散列查找"而非仅"数据结构"），便于分类检索
 {subject_hint}
 
-**重要：你必须只输出一个纯 JSON 对象，不要包含任何 Markdown 代码块标记（如 ```json 或 ```），不要包含任何其他文字说明。**
-
-JSON 格式必须严格如下：
+输出纯JSON（禁用```json标记）：
 {{
-    "analysis": "第一个解题步骤的内容...\\n\\n第二个解题步骤的内容...\\n\\n第三个解题步骤的内容...\\n\\n**答案：** xxx",
+    "analysis": "步骤内容\\n\\n步骤内容\\n\\n**答案：** xxx",
     "answer": "最终答案",
-    "subject": "学科名称（必须从以下列表中选择：{subject_list_str}）",
-    "topic": "主题标签",
-    "knowledge_points": ["知识点1", "知识点2", "知识点3"]
-}}
+    "subject": "{subject_list_str}",
+    "topic": "标签",
+    "knowledge_points": ["具体知识点1", "具体知识点2"]
+}}"""
 
-注意：
-- analysis 字段必须按逻辑步骤分段，每段之间用 \\n\\n 分隔，不要添加步骤编号
-- answer 字段是最终答案
-- subject 字段必须是字符串，从给定的学科列表中选择
-- topic 字段是主题标签（字符串）
-- knowledge_points 字段是字符串数组
-
-现在请直接输出 JSON，不要任何其他内容："""
-    
     try:
         stream = client.chat.completions.create(
             model=SOLVER_MODEL,
@@ -539,12 +509,12 @@ JSON 格式必须严格如下：
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": solver_prompt}
             ],
-            max_tokens=3000,
+            max_tokens=1500,
             temperature=0.1,
             timeout=90,
             stream=True  # 启用流式输出
         )
-        
+
         for chunk in stream:
             if chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content

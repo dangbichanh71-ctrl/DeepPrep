@@ -1080,50 +1080,67 @@ def render_smart_upload() -> None:
                         response_placeholder.markdown(format_math_text(clean_latex(full_response)), unsafe_allow_html=True)
                         st.session_state.upload_chat[result_key].append({"role": "assistant", "content": full_response})
             
+            # 答案有误反馈
+            feedback_key = f"feedback_{current_idx}"
+            if feedback_key not in st.session_state:
+                st.session_state[feedback_key] = False
+
+            col_fb, col_save = st.columns([1, 1])
+            with col_fb:
+                if st.button("⚠️ 报告答案有误", key=f"report_{current_idx}", use_container_width=True):
+                    st.session_state[feedback_key] = True
+
+            if st.session_state[feedback_key]:
+                st.warning(
+                    "已记录反馈。AI 解析可能存在误差，建议结合教材或老师确认。"
+                    "作为产品设计，我们深知 AI 的局限性，后续将支持人工审核和用户纠错机制。"
+                )
+
             # 保存按钮 - 完全信任AI返回的值
-            if st.button("✅ 存入题库", key=f"save_{current_idx}", type="primary"):
-                try:
-                    # 直接使用AI分析返回的值，不做任何转换或验证
-                    db_subject = result.get("subject")
-                    db_topic = result.get("topic")
-                    db_knowledge_points = result.get("knowledge_points")
-                    db_solution = result.get("solution") or ""
-                    db_question_text_clean = result.get("question_text_clean") or clean_latex(result.get("question_text", ""))
-                    
-                    # 处理空值：如果AI返回null或空，使用默认值，但绝不猜测
-                    if not db_subject:
-                        db_subject = "未分类"
-                    if not db_topic:
-                        db_topic = "未标注"
-                    if not db_knowledge_points:
-                        db_knowledge_points = []
-                    
-                    # 确保knowledge_points是列表格式
-                    if isinstance(db_knowledge_points, str):
-                        db_knowledge_points = [kp.strip() for kp in db_knowledge_points.split(',') if kp.strip()]
-                    
-                    # 获取当前用户 ID（多用户数据隔离）
-                    current_user_id = st.session_state.get("user_id")
-                    
-                    question_id = add_question(
-                        result["image_base64"],
-                        db_solution,
-                        db_knowledge_points,
-                        db_subject,
-                        db_topic,
-                        user_id=current_user_id,
-                        question_text_clean=db_question_text_clean,
-                    )
-                    st.success(f"✅ 已保存（ID: {question_id}）| 学科：{db_subject} | 主题：{db_topic}")
-                    # 从结果列表中移除
-                    st.session_state.upload_results = [r for r in st.session_state.upload_results if r != result]
-                    st.session_state.upload_chat.pop(result_key, None)
-                    # 调整索引
-                    if st.session_state.upload_current_index >= len([r for r in st.session_state.upload_results if r.get("success")]):
-                        st.session_state.upload_current_index = max(0, len([r for r in st.session_state.upload_results if r.get("success")]) - 1)
-                    st.rerun()
-                except Exception as exc:
-                    st.error(f"保存失败：{exc}")
+            with col_save:
+                if st.button("✅ 存入题库", key=f"save_{current_idx}", type="primary"):
+                    try:
+                        # 直接使用AI分析返回的值，不做任何转换或验证
+                        db_subject = result.get("subject")
+                        db_topic = result.get("topic")
+                        db_knowledge_points = result.get("knowledge_points")
+                        db_solution = result.get("solution") or ""
+                        db_question_text_clean = result.get("question_text_clean") or clean_latex(result.get("question_text", ""))
+
+                        # 处理空值：如果AI返回null或空，使用默认值，但绝不猜测
+                        if not db_subject:
+                            db_subject = "未分类"
+                        if not db_topic:
+                            db_topic = "未标注"
+                        if not db_knowledge_points:
+                            db_knowledge_points = []
+
+                        # 确保knowledge_points是列表格式
+                        if isinstance(db_knowledge_points, str):
+                            db_knowledge_points = [kp.strip() for kp in db_knowledge_points.split(',') if kp.strip()]
+
+                        # 获取当前用户 ID（多用户数据隔离）
+                        current_user_id = st.session_state.get("user_id")
+
+                        question_id = add_question(
+                            result["image_base64"],
+                            db_solution,
+                            db_knowledge_points,
+                            db_subject,
+                            db_topic,
+                            user_id=current_user_id,
+                            question_text_clean=db_question_text_clean,
+                        )
+                        st.success(f"✅ 已保存（ID: {question_id}）| 学科：{db_subject} | 主题：{db_topic}")
+                        # 从结果列表中移除
+                        st.session_state.upload_results = [r for r in st.session_state.upload_results if r != result]
+                        st.session_state.upload_chat.pop(result_key, None)
+                        # 调整索引
+                        if st.session_state.upload_current_index >= len([r for r in st.session_state.upload_results if r.get("success")]):
+                            st.session_state.upload_current_index = max(0, len([r for r in st.session_state.upload_results if r.get("success")]) - 1)
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"保存失败：{exc}")
             
             st.markdown("</div>", unsafe_allow_html=True)
 

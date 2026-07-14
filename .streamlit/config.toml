@@ -1,0 +1,17 @@
+[theme]
+# 默认主题：清新蓝（与代码中的 THEME_PRESETS 一致）
+base="light"
+primaryColor="#0284C7"
+backgroundColor="#F0F9FF"
+secondaryBackgroundColor="#FFFFFF"
+textColor="#0C4A6E"
+font="sans serif"
+
+[server]
+# 线上部署时的一些优化
+maxUploadSize = 20
+enableXsrfProtection = true
+enableCORS = false
+
+[browser]
+gatherUsageStats = false

@@ -250,11 +250,11 @@ def format_next_review(value: Optional[str]) -> str:
 def describe_interval(minutes: int) -> str:
     """将分钟间隔转换为可读文本"""
     if minutes < 60:
-        return f"{minutes} 分钟"
+        return str(minutes) + " 分钟"
     days = minutes / (60 * 24)
     if days.is_integer():
-        return f"{int(days)} 天"
-    return f"{days:.1f} 天"
+        return str(int(days)) + " 天"
+    return str(round(days, 1)) + " 天"
 
 
 def build_theme_css(theme_name: str) -> str:
@@ -362,11 +362,11 @@ def decode_image(image_b64: str) -> bytes:
         
         # 限制图片大小（防止内存问题）
         if len(decoded) > 10 * 1024 * 1024:  # 10MB
-            raise ValueError(f"图片过大 ({len(decoded) / 1024 / 1024:.1f}MB)，超过 10MB 限制")
+            raise ValueError("图片过大 (" + str(round(len(decoded) / 1024 / 1024, 1)) + "MB)，超过 10MB 限制")
         
         return decoded
     except Exception as e:
-        raise ValueError(f"图片解码失败: {str(e)}")
+        raise ValueError("图片解码失败: " + str(e))
 
 
 # ==================== 登录与主题 ====================
@@ -742,14 +742,14 @@ def render_dashboard() -> None:
 
     shortcuts = [
         ("🔍", "智能搜题", "拍照上传，AI 秒解", "🔍 智能搜题", "search"),
-        ("🗂️", "错题库", f"{data['active_count']} 道错题待攻克", "🗂️ 错题库", "vault"),
-        ("🔄", "沉浸式复习", f"今日 {data['today_due_count']} 题待复习", "🔄 沉浸式复习", "review"),
-        ("🧠", "知识图谱", f"{data['mastered_count']} 个知识点已掌握", "🧠 知识图谱", "graph"),
+        ("🗂️", "错题库", str(data['active_count']) + " 道错题待攻克", "🗂️ 错题库", "vault"),
+        ("🔄", "沉浸式复习", "今日 " + str(data['today_due_count']) + " 题待复习", "🔄 沉浸式复习", "review"),
+        ("🧠", "知识图谱", str(data['mastered_count']) + " 个知识点已掌握", "🧠 知识图谱", "graph"),
     ]
 
     for col, (icon, title, desc, page_name, key) in zip([qc1, qc2, qc3, qc4], shortcuts):
         with col:
-            btn_label = f"{icon}\n{title}"
+            btn_label = icon + "\n" + title
             if st.button(btn_label, key=f"quick_{key}", use_container_width=True, type="primary"):
                 st.session_state.current_page = page_name
                 st.rerun()
@@ -784,7 +784,7 @@ def render_dashboard() -> None:
     with right:
         st.markdown("### 💡 学习建议")
         if data["today_due_count"] >= 5:
-            st.warning(f"📌 今天有 {data['today_due_count']} 道题目等待复习，建议现在开始！")
+            st.warning("📌 今天有 " + str(data['today_due_count']) + " 道题目等待复习，建议现在开始！")
         elif data["active_count"] == 0:
             st.info("🎉 暂无需要复习的题目，去上传新题吧！")
         else:
@@ -2394,7 +2394,7 @@ def render_knowledge_graph() -> None:
                         col3.metric("⏳ 待掌握", pending_count)
                         total_kp = mastered_count + partial_count + pending_count
                         subject_rate = ((mastered_count + partial_count * 0.5) / total_kp * 100) if total_kp > 0 else 0
-                        col4.metric("📈 掌握率", f"{subject_rate:.1f}%")
+                        col4.metric("📈 掌握率", str(round(subject_rate, 1)) + "%")
                         
                         # 进度条
                         st.progress(min(max(subject_rate / 100, 0), 1))  # 确保在 0-1 范围内
@@ -2848,13 +2848,13 @@ if page == "🏠 首页":
 elif page == "🔍 智能搜题":
     render_smart_upload()
 elif page == "🗂️ 错题库":
-    # 添加外层错误处理，防止界面消失
     try:
         render_mistake_vault()
     except Exception as e:
         st.error(friendly_error(e))
-        st.info("💡 提示：请检查数据库连接和数据是否正常")
-        st.button("🔄 刷新页面", on_click=lambda: st.rerun())
+        st.info("💡 提示：请刷新页面或稍后再试")
+        if st.button("🔄 刷新页面", key="mistake_refresh"):
+            st.rerun()
 elif page == "🔄 沉浸式复习":
     render_review_mode()
 elif page == "🧠 知识图谱":

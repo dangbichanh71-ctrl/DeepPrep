@@ -691,17 +691,17 @@ def render_dashboard() -> None:
 
     # ====== 欢迎区 ======
     greeting = (
-        f"早上好" if datetime.now().hour < 12
+        "早上好" if datetime.now().hour < 12
         else "下午好" if datetime.now().hour < 18
         else "晚上好"
     )
-    st.markdown(f"""
+    st.markdown("""
     <div style="text-align: center; padding: 1.5rem 0 0.5rem 0;">
         <span style="font-size: 3rem;">📚</span>
         <h1 style="margin: 0.5rem 0 0.2rem 0; font-weight: 700; font-size: 1.8rem;">
-            {greeting}，{username}
+            """ + greeting + """，""" + username + """
         </h1>
-        <p style="color: #6B7280; font-size: 0.95rem; margin: 0;">{st.session_state.identity} · 已使用 {data['days_used']} 天</p>
+        <p style="color: #6B7280; font-size: 0.95rem; margin: 0;">""" + identity + """ · 已使用 """ + str(data['days_used']) + """ 天</p>
     </div>
     """, unsafe_allow_html=True)
 

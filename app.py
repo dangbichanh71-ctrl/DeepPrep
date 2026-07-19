@@ -28,6 +28,7 @@ from db_manager import (
     get_review_logs,
     create_user,
     verify_user,
+    get_user_by_id,
     delete_question,
     add_mastered_knowledge,
     get_mastered_knowledge,
@@ -35,6 +36,8 @@ from db_manager import (
     get_questions_by_knowledge_point,
 )
 from ai_utils import (
+    clean_latex,
+    friendly_error,
     ocr_extract_text,
     solve_problem_text,
     solve_problem_text_stream,
@@ -55,7 +58,7 @@ IDENTITY_SUBJECT_MAP: Dict[str, List[str]] = {
     "大学生": ["高等数学", "线性代数", "概率论", "大学英语", "专业课(理工)", "专业课(经管)", "专业课(文史)"],
 }
 
-PAGE_OPTIONS = ["🔍 智能搜题", "🗂️ 错题库", "🔄 沉浸式复习", "🧠 知识图谱", "📊 学习统计"]
+PAGE_OPTIONS = ["🏠 首页", "🔍 智能搜题", "🗂️ 错题库", "🔄 沉浸式复习", "🧠 知识图谱", "📊 学习统计"]
 
 THEME_PRESETS = {
     "极简白": {
@@ -143,94 +146,6 @@ def init_session_state() -> None:
         st.session_state.feedback_updated = {}
 
 
-def clean_latex(text: str) -> str:
-    """
-    清理 LaTeX 格式，修复乱码
-    增强版：处理 \[ \] 和 \( \)，转换公式内的中文标点，清洗转义符
-    """
-    if not text:
-        return ""
-    import re
-    
-    # 辅助函数：转换公式内的中文标点为英文半角
-    def fix_punctuation_in_math(content: str) -> str:
-        """转换公式内的中文标点为英文半角"""
-        # 标点符号
-        content = content.replace('，', ',').replace('。', '.').replace('：', ':')
-        content = content.replace('；', ';').replace('？', '?').replace('！', '!')
-        # 括号
-        content = content.replace('（', '(').replace('）', ')')
-        content = content.replace('【', '[').replace('】', ']')
-        content = content.replace('《', '<').replace('》', '>')
-        # 数学符号
-        content = content.replace('＋', '+').replace('－', '-')
-        content = content.replace('×', '\\times').replace('÷', '\\div')
-        content = content.replace('＝', '=').replace('＜', '<').replace('＞', '>')
-        content = content.replace('≤', '\\leq').replace('≥', '\\geq')
-        content = content.replace('≠', '\\neq').replace('≈', '\\approx')
-        return content
-    
-    # 0. 转义符清洗：将 JSON 字符串中的双反斜杠替换为单反斜杠（针对 LaTeX 命令）
-    # 但要小心不要破坏换行符（\n）和其他转义序列
-    # 策略：先处理 LaTeX 命令（\\int, \\frac 等），再处理其他情况
-    
-    # 匹配 LaTeX 命令：\\后跟字母序列（如 \\int, \\frac, \\sqrt）
-    def fix_latex_command(match):
-        """修复转义的 LaTeX 命令"""
-        return '\\' + match.group(1)
-    
-    # 匹配 \\后跟字母的 LaTeX 命令（如 \\int, \\frac）
-    text = re.sub(r'\\\\([a-zA-Z]+)', fix_latex_command, text)
-    
-    # 匹配 \\后跟特殊字符的 LaTeX 命令（如 \\{, \\}, \\[, \\]）
-    text = re.sub(r'\\\\([{}\[\]()])', r'\\\1', text)
-    
-    # 处理其他双反斜杠，但排除标准转义序列（\n, \t, \r 等）
-    # 注意：这里要小心，因为前面已经处理了 LaTeX 命令
-    # 剩余的 \\ 可能是多余的转义，但要保留真正的转义序列
-    
-    # 1. 修复 LaTeX 分隔符：将 \[ ... \] 替换为 $$ ... $$
-    def replace_display_math(match):
-        content = match.group(1)
-        content = fix_punctuation_in_math(content)
-        return f'$${content}$$'
-    
-    # 使用非贪婪匹配，支持多行（DOTALL）
-    text = re.sub(r'\\\[(.*?)\\\]', replace_display_math, text, flags=re.DOTALL)
-    
-    # 2. 修复 LaTeX 分隔符：将 \( ... \) 替换为 $ ... $
-    def replace_inline_math(match):
-        content = match.group(1)
-        content = fix_punctuation_in_math(content)
-        return f'${content}$'
-    
-    text = re.sub(r'\\\((.*?)\\\)', replace_inline_math, text, flags=re.DOTALL)
-    
-    # 3. 处理遗留的单个分隔符（如果还有的话）
-    text = re.sub(r'\\\[', '$$', text)
-    text = re.sub(r'\\\]', '$$', text)
-    text = re.sub(r'\\\(', '$', text)
-    text = re.sub(r'\\\)', '$', text)
-    
-    # 4. 修复已存在的 $...$ 格式公式内的中文标点
-    def fix_inline_math_content(match):
-        math_content = match.group(1)
-        math_content = fix_punctuation_in_math(math_content)
-        return f'${math_content}$'
-    
-    text = re.sub(r'\$([^$]+?)\$', fix_inline_math_content, text)
-    
-    # 5. 修复已存在的 $$...$$ 格式公式内的中文标点
-    def fix_display_math_content(match):
-        math_content = match.group(1)
-        math_content = fix_punctuation_in_math(math_content)
-        return f'$${math_content}$$'
-    
-    text = re.sub(r'\$\$(.*?)\$\$', fix_display_math_content, text, flags=re.DOTALL)
-    
-    return text
-
-
 def format_math_text(text: str) -> str:
     """
     修复 LaTeX 渲染（调用 clean_latex）
@@ -268,6 +183,50 @@ def format_math_text(text: str) -> str:
         text_with_placeholders = text_with_placeholders.replace(f"__FORMULA_{idx}__", formula)
     
     return text_with_placeholders
+
+
+def clean_json_text(raw: str) -> str:
+    """清洗 AI 返回的原始文本：去除 Markdown 代码块，提取 JSON 对象"""
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        parts = cleaned.split("```")
+        if len(parts) >= 2:
+            cleaned = parts[1]
+            if cleaned.startswith("json"):
+                cleaned = cleaned[4:]
+            cleaned = cleaned.strip()
+    first_brace = cleaned.find("{")
+    last_brace = cleaned.rfind("}")
+    if first_brace >= 0 and last_brace > first_brace:
+        cleaned = cleaned[first_brace:last_brace + 1]
+    return cleaned
+
+
+def parse_judge_result(full_response: str) -> Tuple[bool, str]:
+    """
+    解析判卷流式输出，返回 (is_correct, feedback_text)。
+    保守策略：解析失败默认判错。
+    """
+    judge_json = ""
+    # 尝试从流式输出中提取 JSON
+    if "{" in full_response:
+        try:
+            start = full_response.find("{")
+            end = full_response.rfind("}") + 1
+            if start >= 0 and end > start:
+                judge_json = full_response[start:end]
+                parsed = json.loads(judge_json)
+                return parsed.get("is_correct") is True, parsed.get("reason", full_response)
+        except Exception:
+            pass
+    # 兜底：无法解析
+    return False, full_response or "无法解析判卷结果"
+
+
+def stream_display(text: str, with_cursor: bool = True) -> str:
+    """格式化流式输出文本，可选光标效果"""
+    formatted = format_math_text(clean_latex(text))
+    return formatted + "▌" if with_cursor else formatted
 
 
 def parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
@@ -500,12 +459,18 @@ def render_login_view() -> None:
     # 登录内容容器 - 无背景框，直接显示在背景上
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     
-    # Header - 简洁版本
+    # Header - 简洁版本（带产品价值主张）
     st.markdown("""
     <div class="login-header">
         <div style="font-size: 3rem; margin-bottom: 0.5rem;">📚</div>
         <div class="login-title">DeepPrep</div>
-        <div class="login-subtitle">智能备考平台</div>
+        <div class="login-subtitle">智能备考平台 · 拍照搜题，AI 秒解</div>
+    </div>
+    <div style="max-width: 420px; margin: 0 auto 1.5rem auto; display: flex; justify-content: space-around; font-size: 0.8rem; color: #6B7280;">
+        <span>📷 拍照搜题</span>
+        <span>🤖 AI 解析</span>
+        <span>🔄 间隔复习</span>
+        <span>📊 知识图谱</span>
     </div>
     """, unsafe_allow_html=True)
     
@@ -564,6 +529,35 @@ def render_login_view() -> None:
 
 def render_sidebar() -> None:
     """渲染侧边栏：导航 + 主题设置 + 用户信息"""
+    # 获取侧边栏数据（缓存避免重复查询）
+    current_user_id = st.session_state.get("user_id")
+    current_user = st.session_state.username or "未知用户"
+    identity = st.session_state.identity or "未设置"
+
+    # 计算使用天数
+    days_used = 1
+    if current_user_id:
+        user_info = get_user_by_id(current_user_id)
+        if user_info and user_info.get("created_at"):
+            try:
+                created = datetime.fromisoformat(user_info["created_at"].replace("Z", ""))
+                days_used = max(1, (datetime.now() - created).days + 1)
+            except Exception:
+                pass
+
+    # 查询统计数据
+    error_count = 0
+    mastered_count = 0
+    if current_user_id:
+        try:
+            questions = get_all_questions(user_id=current_user_id)
+            active_qs = [q for q in questions if q.get("archived", 0) == 0]
+            error_count = len(active_qs)
+            mastered_kps = get_mastered_knowledge(current_user_id)
+            mastered_count = len(mastered_kps)
+        except Exception:
+            pass
+
     with st.sidebar:
         # Logo 和标题
         st.markdown("""
@@ -572,14 +566,19 @@ def render_sidebar() -> None:
             <h2 style="margin: 0.5rem 0 0 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700;">DeepPrep</h2>
         </div>
         """, unsafe_allow_html=True)
-        
-        # 显示当前用户信息
-        current_user = st.session_state.username or st.session_state.phone_number or "未知用户"
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%); padding: 10px 15px; border-radius: 10px; margin-bottom: 1rem;">
-            <span style="font-size: 0.85rem;">👤 <strong>{current_user}</strong> · {st.session_state.identity}</span>
-        </div>
-        """, unsafe_allow_html=True)
+
+        # 显示当前用户信息卡片
+        st.markdown(
+            '<div style="background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%); padding: 12px 15px; border-radius: 10px; margin-bottom: 1rem;">'
+            '<div style="font-size: 0.9rem; margin-bottom: 4px;"><strong>' + current_user + '</strong> · ' + identity + '</div>'
+            '<div style="display: flex; gap: 12px; font-size: 0.75rem; color: #6B7280;">'
+            '<span>📅 ' + str(days_used) + ' 天</span>'
+            '<span>📋 ' + str(error_count) + ' 道错题</span>'
+            '<span>✅ ' + str(mastered_count) + ' 个掌握</span>'
+            '</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         # 优化导航，避免卡顿
         try:
             current_index = PAGE_OPTIONS.index(st.session_state.current_page) if st.session_state.current_page in PAGE_OPTIONS else 0
@@ -613,6 +612,176 @@ def render_sidebar() -> None:
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
+
+
+# ==================== 首页 Dashboard ====================
+def _get_dashboard_data(current_user_id: int):
+    """获取首页所需的所有数据（单次查询，减少 DB 调用）"""
+    questions = get_all_questions(user_id=current_user_id)
+    active = [q for q in questions if q.get("archived", 0) == 0]
+    now = datetime.now()
+
+    today_due = [
+        q for q in active
+        if parse_iso_datetime(q.get("next_review_time")) and parse_iso_datetime(q.get("next_review_time")) <= now
+    ]
+    today_due_count = len(today_due)
+
+    # 按学科分组统计
+    subject_counts = {}
+    for q in active:
+        s = q.get("subject") or "未分类"
+        subject_counts[s] = subject_counts.get(s, 0) + 1
+
+    # 已掌握知识点数
+    mastered = get_mastered_knowledge(current_user_id)
+    mastered_count = len(mastered)
+
+    # 使用天数
+    user_info = get_user_by_id(current_user_id)
+    days_used = 1
+    if user_info and user_info.get("created_at"):
+        try:
+            created = datetime.fromisoformat(user_info["created_at"].replace("Z", ""))
+            days_used = max(1, (now - created).days + 1)
+        except Exception:
+            pass
+
+    return {
+        "active_count": len(active),
+        "today_due_count": today_due_count,
+        "mastered_count": mastered_count,
+        "days_used": days_used,
+        "subject_counts": subject_counts,
+        "total_questions": len(questions),
+        "total_reviews": sum(q.get("review_count", 0) for q in questions),
+    }
+
+
+def render_dashboard() -> None:
+    """渲染首页仪表盘"""
+    current_user_id = st.session_state.get("user_id")
+    if not current_user_id:
+        st.warning("请先登录")
+        return
+
+    username = st.session_state.username or "同学"
+    data = _get_dashboard_data(current_user_id)
+
+    # ====== 欢迎区 ======
+    greeting = (
+        f"早上好" if datetime.now().hour < 12
+        else "下午好" if datetime.now().hour < 18
+        else "晚上好"
+    )
+    st.markdown(f"""
+    <div style="text-align: center; padding: 1.5rem 0 0.5rem 0;">
+        <span style="font-size: 3rem;">📚</span>
+        <h1 style="margin: 0.5rem 0 0.2rem 0; font-weight: 700; font-size: 1.8rem;">
+            {greeting}，{username}
+        </h1>
+        <p style="color: #6B7280; font-size: 0.95rem; margin: 0;">{st.session_state.identity} · 已使用 {data['days_used']} 天</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # ====== 核心数据卡片 ======
+    cols = st.columns(4)
+    palette = THEME_PRESETS.get(st.session_state.theme_choice, THEME_PRESETS["极简白"])
+
+    # 卡片样式模板
+    card_template = (
+        '<div style="text-align: center; padding: 1.2rem 0.8rem; background: ' + palette["card"] +
+        '; border: 1px solid ' + palette["border"] + '; border-radius: 12px;">'
+        '<div style="font-size: 2rem;">{{icon}}</div>'
+        '<div style="font-size: 1.6rem; font-weight: 700; color: ' + palette["accent"] + '; margin: 0.3rem 0;">{{value}}</div>'
+        '<div style="font-size: 0.8rem; color: ' + palette["muted"] + ';">{{label}}</div>'
+        '</div>'
+    )
+
+    cards = [
+        ("📋", str(data["active_count"]), "活跃错题"),
+        ("📌", str(data["today_due_count"]), "今日待复习"),
+        ("🧠", str(data["mastered_count"]), "已掌握知识点"),
+        ("📊", str(data["total_reviews"]), "累计复习次数"),
+    ]
+    for col, (icon, value, label) in zip(cols, cards):
+        with col:
+            st.markdown(
+                card_template.replace("{{icon}}", icon).replace("{{value}}", value).replace("{{label}}", label),
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ====== 快捷入口 ======
+    st.markdown("### 🚀 快速开始")
+    qc1, qc2, qc3, qc4 = st.columns(4)
+
+    shortcuts = [
+        ("🔍", "智能搜题", "拍照上传，AI 秒解", "🔍 智能搜题", "search"),
+        ("🗂️", "错题库", f"{data['active_count']} 道错题待攻克", "🗂️ 错题库", "vault"),
+        ("🔄", "沉浸式复习", f"今日 {data['today_due_count']} 题待复习", "🔄 沉浸式复习", "review"),
+        ("🧠", "知识图谱", f"{data['mastered_count']} 个知识点已掌握", "🧠 知识图谱", "graph"),
+    ]
+
+    for col, (icon, title, desc, page_name, key) in zip([qc1, qc2, qc3, qc4], shortcuts):
+        with col:
+            btn_label = f"{icon}\n{title}"
+            if st.button(btn_label, key=f"quick_{key}", use_container_width=True, type="primary"):
+                st.session_state.current_page = page_name
+                st.rerun()
+            st.caption(desc)
+
+    st.markdown("---")
+
+    # ====== 学科分布 ======
+    left, right = st.columns([1, 1])
+    with left:
+        st.markdown("### 📊 学科分布")
+        if data["subject_counts"]:
+            subjects = sorted(data["subject_counts"].items(), key=lambda x: x[1], reverse=True)
+            total = sum(v for _, v in subjects)
+            bars_html = ""
+            for s, cnt in subjects[:8]:
+                pct = cnt / total * 100 if total > 0 else 0
+                bar_color = palette["accent"]
+                bars_html += (
+                    '<div style="margin-bottom: 8px;">'
+                    '<div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 2px;">'
+                    '<span>' + s + '</span><span style="color: #6B7280;">' + str(cnt) + ' 题</span>'
+                    '</div>'
+                    '<div style="background: #E5E7EB; border-radius: 6px; height: 8px;">'
+                    '<div style="background: ' + bar_color + '; width: ' + str(pct) + '%; height: 8px; border-radius: 6px;"></div>'
+                    '</div></div>'
+                )
+            st.markdown(bars_html, unsafe_allow_html=True)
+        else:
+            st.info("暂无错题数据，去搜题页上传题目吧！")
+
+    with right:
+        st.markdown("### 💡 学习建议")
+        if data["today_due_count"] >= 5:
+            st.warning(f"📌 今天有 {data['today_due_count']} 道题目等待复习，建议现在开始！")
+        elif data["active_count"] == 0:
+            st.info("🎉 暂无需要复习的题目，去上传新题吧！")
+        else:
+            st.success("✅ 复习进度良好，继续保持！")
+
+        if data["mastered_count"] == 0:
+            st.info("🧠 还没有已掌握的知识点，完成复习达到 3 次答对即可点亮。")
+
+        st.markdown(
+            '<div style="font-size: 0.85rem; color: #6B7280; margin-top: 12px; padding: 12px; background: #F9FAFB; border-radius: 8px;">'
+            '<strong>间隔重复学习法</strong><br>'
+            '答错 → 10 分钟后复习<br>'
+            '第 1 次答对 → 1 天后复习<br>'
+            '第 2 次答对 → 7 天后复习<br>'
+            '第 3 次答对 → 15 天后归档 ✅<br>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
 
 # ==================== 智能搜题 ====================
@@ -703,28 +872,9 @@ def process_single_image(image_bytes: bytes, filename: str, target_subjects: Lis
             
             # 最终解析并显示完整的格式化解题步骤
             if display_placeholder:
-                # 解析完整JSON
-                raw_content = full_response.strip()
-                
-                # 清理可能的 markdown 代码块标记
-                if raw_content.startswith("```"):
-                    parts = raw_content.split("```")
-                    if len(parts) >= 2:
-                        raw_content = parts[1]
-                        if raw_content.startswith("json"):
-                            raw_content = raw_content[4:]
-                        raw_content = raw_content.strip()
-                
-                # 尝试提取 JSON 对象
-                json_text = raw_content
-                first_brace = json_text.find("{")
-                last_brace = json_text.rfind("}")
-                if first_brace >= 0 and last_brace > first_brace:
-                    json_text = json_text[first_brace:last_brace + 1]
-                
-                # 解析JSON
+                json_text = clean_json_text(full_response)
                 parsed_data = parse_imperfect_json(json_text)
-                
+
                 if parsed_data and isinstance(parsed_data, dict):
                     analysis = parsed_data.get("analysis", "")
                     answer = parsed_data.get("answer", "")
@@ -746,28 +896,10 @@ def process_single_image(image_bytes: bytes, filename: str, target_subjects: Lis
                         unsafe_allow_html=True
                     )
             
-            # 解析 JSON
-            raw_content = full_response.strip()
-            
-            # 清理可能的 markdown 代码块标记
-            if raw_content.startswith("```"):
-                parts = raw_content.split("```")
-                if len(parts) >= 2:
-                    raw_content = parts[1]
-                    if raw_content.startswith("json"):
-                        raw_content = raw_content[4:]
-                    raw_content = raw_content.strip()
-            
-            # 尝试提取 JSON 对象
-            json_text = raw_content
-            first_brace = json_text.find("{")
-            last_brace = json_text.rfind("}")
-            if first_brace >= 0 and last_brace > first_brace:
-                json_text = json_text[first_brace:last_brace + 1]
-            
-            # 使用增强的 JSON 解析函数
+            # 解析 JSON（统一清洗）
+            json_text = clean_json_text(full_response)
             parsed_data = parse_imperfect_json(json_text)
-            
+
             if parsed_data and isinstance(parsed_data, dict):
                 analysis = parsed_data.get("analysis", "")
                 answer = parsed_data.get("answer", "")
@@ -839,10 +971,10 @@ def process_single_image(image_bytes: bytes, filename: str, target_subjects: Lis
             }
         except Exception as e:
             if display_placeholder:
-                display_placeholder.error(f"**📷 [{filename}]** ❌ 处理失败：{str(e)}")
+                display_placeholder.error(f"**📷 [{filename}]** ❌ {friendly_error(e)}")
             if attempt < max_retries:
                 continue
-            return {"success": False, "filename": filename, "error": str(e)}
+            return {"success": False, "filename": filename, "error": friendly_error(e)}
     
     return {"success": False, "filename": filename, "error": "处理失败（已重试）"}
 
@@ -1073,9 +1205,8 @@ def render_smart_upload() -> None:
                             full_response += chunk
                             # 每5个字符更新一次显示，减少渲染次数
                             if len(full_response) % 5 == 0 or chunk == "":
-                                display_text = format_math_text(clean_latex(full_response)) + "▌"
-                                response_placeholder.markdown(display_text, unsafe_allow_html=True)
-                        
+                                response_placeholder.markdown(stream_display(full_response), unsafe_allow_html=True)
+
                         # 最终显示完整内容
                         response_placeholder.markdown(format_math_text(clean_latex(full_response)), unsafe_allow_html=True)
                         st.session_state.upload_chat[result_key].append({"role": "assistant", "content": full_response})
@@ -1325,11 +1456,8 @@ def render_mistake_vault() -> None:
                         st.code(traceback.format_exc())
     
     except Exception as e:
-        st.error(f"❌ 加载错题库时出错: {str(e)}")
-        import traceback
-        with st.expander("查看错误详情", expanded=True):
-            st.code(traceback.format_exc())
-        st.info("💡 提示：请检查数据库连接是否正常，或尝试刷新页面")
+        st.error(friendly_error(e))
+        st.info("💡 提示：可能是数据加载异常，请尝试刷新页面")
         st.button("🔄 刷新页面", on_click=lambda: st.rerun())
 
 
@@ -1583,7 +1711,6 @@ def render_review_mode() -> None:
                     
                     # 流式判卷 - 优化体验，即时显示
                     full_feedback = ""
-                    judge_json = ""
                     for chunk in judge_answer_stream(
                         question_text,
                         standard_solution,
@@ -1591,48 +1718,13 @@ def render_review_mode() -> None:
                         user_answer_image,
                     ):
                         full_feedback += chunk
-                        # 尝试解析 JSON
-                        if not judge_json and ("{" in full_feedback or "is_correct" in full_feedback):
-                            try:
-                                start = full_feedback.find("{")
-                                end = full_feedback.rfind("}") + 1
-                                if start >= 0 and end > start:
-                                    judge_json = full_feedback[start:end]
-                                    parsed = json.loads(judge_json)
-                                    is_correct = parsed.get("is_correct") is True
-                                    feedback_text = parsed.get("reason", full_feedback)
-                                    full_feedback = feedback_text
-                            except:
-                                pass
                         # 即时渲染，显示光标效果
-                        display_text = format_math_text(clean_latex(full_feedback)) + "▌"
+                        display_text = stream_display(full_feedback)
                         feedback_placeholder.markdown(display_text, unsafe_allow_html=True)
-                    
-                    # 解析最终结果 - 严格解析，默认判错
-                    if not judge_json:
-                        try:
-                            start = full_feedback.find("{")
-                            end = full_feedback.rfind("}") + 1
-                            if start >= 0 and end > start:
-                                judge_json = full_feedback[start:end]
-                                parsed = json.loads(judge_json)
-                                is_correct = parsed.get("is_correct") is True
-                                feedback_text = parsed.get("reason", full_feedback)
-                            else:
-                                is_correct = False
-                                feedback_text = full_feedback or "无法解析判卷结果"
-                        except Exception as e:
-                            is_correct = False
-                            feedback_text = f"判卷结果解析失败：{str(e)}"
-                    else:
-                        try:
-                            parsed = json.loads(judge_json)
-                            is_correct = parsed.get("is_correct") is True
-                            feedback_text = parsed.get("reason", full_feedback)
-                        except Exception as e:
-                            is_correct = False
-                            feedback_text = f"判卷结果解析失败：{str(e)}"
-                    
+
+                    # 解析判卷结果（保守策略，默认判错）
+                    is_correct, feedback_text = parse_judge_result(full_feedback)
+
                     # 存储判卷结果（不更新数据库，等feedback阶段再更新）
                     st.session_state.current_result = {
                         "is_correct": is_correct,
@@ -1818,9 +1910,8 @@ def render_review_mode() -> None:
                         full_response += chunk
                         # 每5个字符更新一次显示，减少渲染次数
                         if len(full_response) % 5 == 0 or chunk == "":
-                            display_text = format_math_text(clean_latex(full_response)) + "▌"
-                            response_placeholder.markdown(display_text, unsafe_allow_html=True)
-                    
+                            response_placeholder.markdown(stream_display(full_response), unsafe_allow_html=True)
+
                     # 最终显示完整内容
                     response_placeholder.markdown(format_math_text(clean_latex(full_response)), unsafe_allow_html=True)
                     st.session_state.temp_chat_history[user_qid_key].append({"role": "assistant", "content": full_response})
@@ -1847,26 +1938,9 @@ def render_review_mode() -> None:
                 for chunk in generate_similar_question_stream(question_text, knowledge_points):
                     full_similar_raw += chunk
                 
-                # 清理可能的 markdown 代码块标记，改进 JSON 解析
-                cleaned_raw = full_similar_raw.strip()
-                
-                # 移除 markdown 代码块标记
-                if cleaned_raw.startswith("```"):
-                    parts = cleaned_raw.split("```")
-                    if len(parts) >= 2:
-                        cleaned_raw = parts[1]
-                        if cleaned_raw.startswith("json"):
-                            cleaned_raw = cleaned_raw[4:]
-                        cleaned_raw = cleaned_raw.strip()
-                
-                # 尝试提取 JSON 对象（更健壮的解析）
-                json_text = cleaned_raw
-                # 尝试找到第一个 { 和最后一个 }
-                first_brace = json_text.find("{")
-                last_brace = json_text.rfind("}")
-                if first_brace >= 0 and last_brace > first_brace:
-                    json_text = json_text[first_brace:last_brace + 1]
-                
+                # 统一清洗 JSON
+                json_text = clean_json_text(full_similar_raw)
+
                 # 安全解析 JSON
                 try:
                     # 尝试解析 JSON
@@ -1962,55 +2036,20 @@ def render_review_mode() -> None:
                             
                             # 流式判卷 - 优化体验
                             full_feedback = ""
-                            judge_json = ""
                             for chunk in judge_answer_stream(
                                 clean_latex(st.session_state.temp_similar_q[user_qid_key]),
-                                standard_for_judge,  # 使用同类题的答案和解析
+                                standard_for_judge,
                                 similar_user_answer,
                                 None,
                             ):
                                 full_feedback += chunk
-                                if not judge_json and ("{" in full_feedback or "is_correct" in full_feedback):
-                                    try:
-                                        start = full_feedback.find("{")
-                                        end = full_feedback.rfind("}") + 1
-                                        if start >= 0 and end > start:
-                                            judge_json = full_feedback[start:end]
-                                            parsed = json.loads(judge_json)
-                                            is_correct = parsed.get("is_correct") is True
-                                            feedback_text = parsed.get("reason", full_feedback)
-                                            full_feedback = feedback_text
-                                    except:
-                                        pass
                                 # 即时渲染，显示光标效果
-                                display_text = format_math_text(clean_latex(full_feedback)) + "▌"
+                                display_text = stream_display(full_feedback)
                                 feedback_placeholder.markdown(display_text, unsafe_allow_html=True)
-                            
-                            # 解析最终结果
-                            if not judge_json:
-                                try:
-                                    start = full_feedback.find("{")
-                                    end = full_feedback.rfind("}") + 1
-                                    if start >= 0 and end > start:
-                                        judge_json = full_feedback[start:end]
-                                        parsed = json.loads(judge_json)
-                                        is_correct = parsed.get("is_correct") is True
-                                        feedback_text = parsed.get("reason", full_feedback)
-                                    else:
-                                        is_correct = False
-                                        feedback_text = full_feedback or "无法解析判卷结果"
-                                except Exception as e:
-                                    is_correct = False
-                                    feedback_text = f"判卷结果解析失败：{str(e)}"
-                            else:
-                                try:
-                                    parsed = json.loads(judge_json)
-                                    is_correct = parsed.get("is_correct") is True
-                                    feedback_text = parsed.get("reason", full_feedback)
-                                except Exception as e:
-                                    is_correct = False
-                                    feedback_text = f"判卷结果解析失败：{str(e)}"
-                            
+
+                            # 解析判卷结果（保守策略，默认判错）
+                            is_correct, feedback_text = parse_judge_result(full_feedback)
+
                             # 存储同类题判卷结果
                             st.session_state.temp_similar_result[user_qid_key] = {
                                 "is_correct": is_correct,
@@ -2095,9 +2134,8 @@ def render_review_mode() -> None:
                                     full_response += chunk
                                     # 每5个字符更新一次显示，减少渲染次数
                                     if len(full_response) % 5 == 0 or chunk == "":
-                                        display_text = format_math_text(clean_latex(full_response)) + "▌"
-                                        response_placeholder.markdown(display_text, unsafe_allow_html=True)
-                                
+                                        response_placeholder.markdown(stream_display(full_response), unsafe_allow_html=True)
+
                                 # 最终显示完整内容
                                 response_placeholder.markdown(format_math_text(clean_latex(full_response)), unsafe_allow_html=True)
                                 st.session_state.temp_similar_chat_history[user_qid_key].append({"role": "assistant", "content": full_response})
@@ -2231,13 +2269,9 @@ def render_knowledge_graph() -> None:
             loading_placeholder.empty()
         except Exception as e:
             loading_placeholder.empty()
-            st.error(f"❌ 获取知识点统计时出错: {str(e)}")
-            import traceback
-            with st.expander("查看错误详情", expanded=True):
-                st.code(traceback.format_exc())
-            st.info("💡 提示：请检查数据库连接是否正常，或尝试刷新页面")
+            st.error(friendly_error(e))
+            st.info("💡 提示：可能是数据加载异常，请稍后重试")
             return
-        
         # 按学科展示知识图谱
         st.markdown("### 📊 各学科知识图谱")
         
@@ -2785,18 +2819,17 @@ st.markdown(
 )
 
 page = st.session_state.current_page
-if page == "🔍 智能搜题":
+if page == "🏠 首页":
+    render_dashboard()
+elif page == "🔍 智能搜题":
     render_smart_upload()
 elif page == "🗂️ 错题库":
     # 添加外层错误处理，防止界面消失
     try:
         render_mistake_vault()
     except Exception as e:
-        st.error(f"❌ 错题库加载失败: {str(e)}")
-        import traceback
-        with st.expander("查看错误详情", expanded=True):
-            st.code(traceback.format_exc())
-        st.info("💡 提示：请检查数据库连接和数据结构是否正常")
+        st.error(friendly_error(e))
+        st.info("💡 提示：请检查数据库连接和数据是否正常")
         st.button("🔄 刷新页面", on_click=lambda: st.rerun())
 elif page == "🔄 沉浸式复习":
     render_review_mode()
@@ -2806,10 +2839,7 @@ elif page == "🧠 知识图谱":
     try:
         render_knowledge_graph()
     except Exception as e:
-        st.error(f"❌ 知识图谱加载失败: {str(e)}")
-        import traceback
-        with st.expander("查看错误详情", expanded=True):
-            st.code(traceback.format_exc())
+        st.error(friendly_error(e))
         st.info("💡 提示：请检查数据库连接和数据结构是否正常")
 else:
     render_learning_stats()

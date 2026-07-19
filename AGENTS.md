@@ -50,18 +50,22 @@
 - [x] 全学科 prompt 适配：翻译题逐词拆解、数学题逐步计算、代码题算法推演
 - [x] LaTeX 渲染修复：要求上标下标用花括号（x^{2}）
 - [x] 知识点细化：prompt 要求具体标签（如"哈希表/散列查找"而非"数据结构"）
-- [x] 代码重构：清理死代码、提取公共函数、SQLite 连接防泄漏、app.py 瘦身 ~300 行
-- [x] 首页 Dashboard 重设计：登录默认进入首页，显示统计数据 + 快捷入口
-- [x] 侧边栏信息优化：显示使用天数、错题数、已掌握知识点数
-- [x] 注册/登录页优化：展示产品价值主张（4个核心功能标签）
-- [x] AI 错误友好处理：`friendly_error()` 统一映射 API 异常为中文提示
+
+### 待推送 ⏳
+
+本地有一个未推送的 commit：`speed and prompt optimization`，内容为 ai_utils.py + app.py + AGENTS.md 的修改。由于网络问题暂未推送到 GitHub。用户需要在自己终端执行 `git push`。
 
 ### 待完成 🔜
 
+按优先级排列（参考完整计划：`C:\Users\Administrator\.Codex\plans\sunny-enchanting-meerkat.md`）：
+
 | 优先级 | 任务 | 阶段 |
 |--------|------|------|
-| 🔴 当前 | **你线上测试**：以面试官视角走一遍全流程 | 阶段二 |
-| 🔴 当前 | git add + commit + push 到 GitHub | 阶段二 |
+| 🔴 当前 | 线上测试 6 道题，验证速度和质量改善 | 测试 |
+| 🟡 下一步 | 首页 Dashboard 重设计（登录后第一眼） | 阶段二 |
+| 🟡 下一步 | AI 错误友好处理（中文提示替代报错堆栈） | 阶段二 |
+| 🟡 下一步 | 注册/登录页优化（展示产品价值主张） | 阶段二 |
+| 🟡 下一步 | 侧边栏信息优化（用户身份、使用天数、错题数） | 阶段二 |
 | 🔵 后续 | 产品文档撰写（PRD、用户故事、竞品分析） | 阶段三 |
 | 🔵 后续 | 产品演示视频录制（2-3分钟） | 阶段三 |
 | 🔵 后续 | GitHub 仓库改为 Public | 阶段三 |
@@ -70,7 +74,7 @@
 
 - GitHub 仓库：https://github.com/dangbichanh71-ctrl/DeepPrep
 - 线上地址：https://deepprep.streamlit.app
-- 完整计划文件：`C:\Users\Administrator\.claude\plans\sunny-enchanting-meerkat.md`
+- 完整计划文件：`C:\Users\Administrator\.Codex\plans\sunny-enchanting-meerkat.md`
 - GitHub 用户名：dangbichanh71-ctrl
 - Git 用户：luoyiguo / dangbichanh71@gmail.com
 
@@ -82,4 +86,4 @@
 4. GitHub 先 Private 后 Public（文档完善后再公开）
 5. 演示视频在阶段三（产品打磨完成后）录制
 6. ai_utils.py 已加 frequency_penalty=0.5 + presence_penalty=0.3 + temperature 调至 0.3，修复 LLM 重复输出死循环
-7. 本地还有解析报错未解决（待 Claude 看图定位）
+7. 本地还有解析报错未解决（待 Codex 看图定位）

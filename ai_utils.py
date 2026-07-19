@@ -7,7 +7,7 @@ V5.1 - 模型优化 + LaTeX 增强版本
 import base64
 import os
 import re
-from openai import OpenAI
+from openai import OpenAI, APIError, APIConnectionError, RateLimitError, APITimeoutError
 from typing import Dict, List, Optional, Tuple
 import json
 
@@ -56,12 +56,35 @@ def get_client():
     return OpenAI(api_key=API_KEY, base_url=BASE_URL)
 
 
+# ==================== AI 异常友好化 ====================
+def friendly_error(exc: Exception) -> str:
+    """将 OpenAI 异常映射为用户友好的中文提示"""
+    if isinstance(exc, APITimeoutError):
+        return "⏱️ AI 响应超时，请稍后重试。（网络波动或服务器繁忙）"
+    if isinstance(exc, RateLimitError):
+        return "🚦 API 请求过于频繁，请稍等片刻再试。"
+    if isinstance(exc, APIConnectionError):
+        return "🔌 无法连接到 AI 服务器，请检查网络连接。"
+    if isinstance(exc, APIError):
+        msg = str(exc)
+        if "401" in msg or "unauthorized" in msg.lower():
+            return "🔑 API Key 无效或已过期，请联系管理员。"
+        if "402" in msg or "insufficient" in msg.lower():
+            return "💰 API 账户余额不足，请联系管理员充值。"
+        if "429" in msg:
+            return "🚦 API 请求频繁，请稍等片刻再试。"
+        if "500" in msg or "503" in msg:
+            return "🖥️ AI 服务暂时不可用，请稍后重试。"
+        return f"🤖 AI 服务异常：{msg[:100]}"
+    return f"❌ 操作失败：{str(exc)[:150]}"
+
+
 # ==================== LaTeX 清洗增强 ====================
 def clean_latex(text: str) -> str:
-    """
+    r"""
     清理 LaTeX 格式，修复乱码
     增强版：处理 \[ \] 和 \( \)，转换公式内的中文标点，清洗转义符
-    
+
     主要功能：
     1. 将 \[ ... \] 替换为 $$ ... $$（独立公式）
     2. 将 \( ... \) 替换为 $ ... $（行内公式）
@@ -375,10 +398,12 @@ def solve_problem_text(ocr_text: str, target_subjects: Optional[List[str]] = Non
             {"role": "user", "content": solver_prompt}
         ],
         max_tokens=1500,
-        temperature=0.1,
+        temperature=0.3,
+        frequency_penalty=0.5,
+        presence_penalty=0.3,
         timeout=90
     )
-    
+
     raw_content = response.choices[0].message.content.strip()
     
     # 使用增强的 JSON 解析函数
@@ -510,7 +535,9 @@ def solve_problem_text_stream(ocr_text: str, target_subjects: Optional[List[str]
                 {"role": "user", "content": solver_prompt}
             ],
             max_tokens=1500,
-            temperature=0.1,
+            temperature=0.3,
+            frequency_penalty=0.5,  # 防止重复输出同一内容
+            presence_penalty=0.3,   # 鼓励模型使用新token
             timeout=90,
             stream=True  # 启用流式输出
         )

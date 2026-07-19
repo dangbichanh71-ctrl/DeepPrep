@@ -687,6 +687,7 @@ def render_dashboard() -> None:
         return
 
     username = st.session_state.username or "同学"
+    identity = st.session_state.identity or "未设置"
     data = _get_dashboard_data(current_user_id)
 
     # ====== 欢迎区 ======

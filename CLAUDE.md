@@ -56,6 +56,7 @@
 - [x] 注册/登录页优化：展示产品价值主张（4个核心功能标签）
 - [x] AI 错误友好处理：`friendly_error()` 统一映射 API 异常为中文提示
 - [x] 演示用账号：`demo / demo123`，5道题分散在4个学科，3个已掌握知识点
+- [x] 修复多个页面切换崩溃问题（知识图谱卡死、侧边栏 NaN、进度条残留）
 
 ### 演示账号
 
@@ -65,14 +66,12 @@
 |--------|------|----------|
 | `demo` | `demo123` | 5 道题（数学2/英语1/物理1/化学1），3 个已掌握知识点，不同掌握程度 |
 
-其他已有账号：`666`（3题）、`111`（2题）、`用户名1`（20题，最老用户）
-
 ### 待完成 🔜
 
 | 优先级 | 任务 | 阶段 |
 |--------|------|------|
 | 🔴 当前 | **你线上测试**：以面试官视角走一遍全流程 | 阶段二 |
-| 🔴 当前 | git add + commit + push 到 GitHub | 阶段二 |
+| 🔴 当前 | `git push origin main`（GitHub 被墙，需你手动操作） | 阶段二 |
 | 🔵 后续 | 产品文档撰写（PRD、用户故事、竞品分析） | 阶段三 |
 | 🔵 后续 | 产品演示视频录制（2-3分钟） | 阶段三 |
 | 🔵 后续 | GitHub 仓库改为 Public | 阶段三 |
@@ -82,8 +81,23 @@
 - GitHub 仓库：https://github.com/dangbichanh71-ctrl/DeepPrep
 - 线上地址：https://deepprep.streamlit.app
 - 完整计划文件：`C:\Users\Administrator\.claude\plans\sunny-enchanting-meerkat.md`
+- 交接文档：`C:\Users\Administrator\Desktop\DeepPrep - 智能备考平台\交接文档.md`
 - GitHub 用户名：dangbichanh71-ctrl
 - Git 用户：luoyiguo / dangbichanh71@gmail.com
+
+### 本地未推送的 commit
+
+共 7 个 commit 领先于 origin/main（GitHub 被防火墙阻断）：
+
+```
+0e73c0c fix: wrap get_user_by_id in try block to prevent sidebar crash for missing users
+a54617f docs: add handover document for system handoff
+deab198 fix: clear upload_processing state in _kg_safe_init to prevent stuck progress bar
+afc0513 fix: extract _kg_safe_init to prevent knowledge graph crash on page switch
+ebe7e33 docs: add demo account info to CLAUDE.md
+59643aa refactor: code cleanup + stage 2 product polish
+2810344 speed and prompt optimization
+```
 
 ### 关键决策记录
 
@@ -93,4 +107,4 @@
 4. GitHub 先 Private 后 Public（文档完善后再公开）
 5. 演示视频在阶段三（产品打磨完成后）录制
 6. ai_utils.py 已加 frequency_penalty=0.5 + presence_penalty=0.3 + temperature 调至 0.3，修复 LLM 重复输出死循环
-7. 本地还有解析报错未解决（待 Claude 看图定位）
+7. 代码审查发现的 4 处问题已全部修复（clean_latex 重复定义、死代码、SQLite 连接泄漏、重复代码提取）

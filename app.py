@@ -672,6 +672,8 @@ def _kg_safe_init():
                 st.session_state[key] = None
     if st.session_state.get("review_stage") != "answering":
         st.session_state["review_stage"] = "answering"
+    if st.session_state.get("upload_processing"):
+        st.session_state["upload_processing"] = False
 
 
 def render_dashboard() -> None:

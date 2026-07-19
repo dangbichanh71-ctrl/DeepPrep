@@ -249,12 +249,14 @@ def format_next_review(value: Optional[str]) -> str:
 
 def describe_interval(minutes: int) -> str:
     """将分钟间隔转换为可读文本"""
-    if minutes < 60:
-        return str(minutes) + " 分钟"
-    days = minutes / (60 * 24)
-    if days.is_integer():
-        return str(int(days)) + " 天"
-    return str(round(days, 1)) + " 天"
+    m = int(minutes)
+    if m < 60:
+        return str(m) + " 分钟"
+    d = m // 1440
+    h = (m % 1440) // 60
+    if h == 0:
+        return str(d) + " 天"
+    return str(d) + " 天 " + str(h) + " 小时"
 
 
 def build_theme_css(theme_name: str) -> str:

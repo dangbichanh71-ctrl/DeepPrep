@@ -658,6 +658,22 @@ def _get_dashboard_data(current_user_id: int):
     }
 
 
+def _kg_safe_init():
+    """安全初始化：清理复习模式残留状态，防止知识图谱页面卡死"""
+    review_keys = [
+        "current_review_qid", "last_question_id",
+        "current_result", "current_question_index", "review_question_list"
+    ]
+    for key in review_keys:
+        if key in st.session_state:
+            if key == "review_question_list":
+                st.session_state[key] = []
+            else:
+                st.session_state[key] = None
+    if st.session_state.get("review_stage") != "answering":
+        st.session_state["review_stage"] = "answering"
+
+
 def render_dashboard() -> None:
     """渲染首页仪表盘"""
     current_user_id = st.session_state.get("user_id")
@@ -2817,6 +2833,9 @@ st.markdown(
     build_theme_css(st.session_state.theme_choice),
     unsafe_allow_html=True,
 )
+
+# 为知识图谱页面预清理复习状态，防止切换页面卡死
+_kg_safe_init()
 
 page = st.session_state.current_page
 if page == "🏠 首页":

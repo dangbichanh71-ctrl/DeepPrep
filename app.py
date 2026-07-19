@@ -534,16 +534,19 @@ def render_sidebar() -> None:
     current_user = st.session_state.username or "未知用户"
     identity = st.session_state.identity or "未设置"
 
-    # 计算使用天数
+    # 计算使用天数：从用户注册日期算起
     days_used = 1
     if current_user_id:
-        user_info = get_user_by_id(current_user_id)
-        if user_info and user_info.get("created_at"):
-            try:
-                created = datetime.fromisoformat(user_info["created_at"].replace("Z", ""))
-                days_used = max(1, (datetime.now() - created).days + 1)
-            except Exception:
-                pass
+        try:
+            user_info = get_user_by_id(current_user_id)
+            if user_info and user_info.get("created_at"):
+                try:
+                    created = datetime.fromisoformat(user_info["created_at"].replace("Z", ""))
+                    days_used = max(1, (datetime.now() - created).days + 1)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     # 查询统计数据
     error_count = 0

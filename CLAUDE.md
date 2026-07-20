@@ -44,7 +44,7 @@
 - [x] Git 初始化 + 安全加固（移除硬编码 API Key）
 - [x] GitHub 仓库：`dangbichanh71-ctrl/DeepPrep`（Private，分支 `main`）
 - [x] Streamlit Cloud 部署：https://deepprep.streamlit.app
-- [x] README.md（产品介绍风格）
+- [x] README.md（产品介绍风格，含演示账号）
 - [x] 速度优化：prompt 精简，max_tokens 从 3000 降到 1500
 - [x] 答案反馈按钮：解析下方增加"⚠️ 报告答案有误"
 - [x] 全学科 prompt 适配：翻译题逐词拆解、数学题逐步计算、代码题算法推演
@@ -57,6 +57,8 @@
 - [x] AI 错误友好处理：`friendly_error()` 统一映射 API 异常为中文提示
 - [x] 演示用账号：`demo / demo123`，5道题分散在4个学科，3个已掌握知识点
 - [x] 修复多个页面切换崩溃问题（知识图谱卡死、侧边栏 NaN、进度条残留）
+- [x] 产品文档：PRD、用户故事地图、竞品分析（`docs/` 目录）
+- [x] 项目清理：删除 5 个冗余文件，保留 11 个核心文件
 
 ### 演示账号
 
@@ -68,36 +70,19 @@
 
 ### 待完成 🔜
 
-| 优先级 | 任务 | 阶段 |
-|--------|------|------|
-| 🔴 当前 | **你线上测试**：以面试官视角走一遍全流程 | 阶段二 |
-| 🔴 当前 | `git push origin main`（GitHub 被墙，需你手动操作） | 阶段二 |
-| 🔵 后续 | 产品文档撰写（PRD、用户故事、竞品分析） | 阶段三 |
-| 🔵 后续 | 产品演示视频录制（2-3分钟） | 阶段三 |
-| 🔵 后续 | GitHub 仓库改为 Public | 阶段三 |
+| 优先级 | 任务 |
+|--------|------|
+| 🔴 当前 | 录制产品演示视频（2-3 分钟） |
+| 🔴 当前 | GitHub 仓库改为 Public |
+| 🔵 后续 | 简历项目描述撰写 + 面试问答准备 |
 
 ### 重要链接
 
 - GitHub 仓库：https://github.com/dangbichanh71-ctrl/DeepPrep
 - 线上地址：https://deepprep.streamlit.app
 - 完整计划文件：`C:\Users\Administrator\.claude\plans\sunny-enchanting-meerkat.md`
-- 交接文档：`C:\Users\Administrator\Desktop\DeepPrep - 智能备考平台\交接文档.md`
 - GitHub 用户名：dangbichanh71-ctrl
 - Git 用户：luoyiguo / dangbichanh71@gmail.com
-
-### 本地未推送的 commit
-
-共 7 个 commit 领先于 origin/main（GitHub 被防火墙阻断）：
-
-```
-0e73c0c fix: wrap get_user_by_id in try block to prevent sidebar crash for missing users
-a54617f docs: add handover document for system handoff
-deab198 fix: clear upload_processing state in _kg_safe_init to prevent stuck progress bar
-afc0513 fix: extract _kg_safe_init to prevent knowledge graph crash on page switch
-ebe7e33 docs: add demo account info to CLAUDE.md
-59643aa refactor: code cleanup + stage 2 product polish
-2810344 speed and prompt optimization
-```
 
 ### 关键决策记录
 
@@ -108,3 +93,4 @@ ebe7e33 docs: add demo account info to CLAUDE.md
 5. 演示视频在阶段三（产品打磨完成后）录制
 6. ai_utils.py 已加 frequency_penalty=0.5 + presence_penalty=0.3 + temperature 调至 0.3，修复 LLM 重复输出死循环
 7. 代码审查发现的 4 处问题已全部修复（clean_latex 重复定义、死代码、SQLite 连接泄漏、重复代码提取）
+8. f-string 中 emoji+中文在 Windows GBK 编码下会崩溃，已全部替换为字符串拼接

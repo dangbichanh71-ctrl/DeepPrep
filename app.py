@@ -821,7 +821,7 @@ def process_single_image(image_bytes: bytes, filename: str, target_subjects: Lis
         try:
             # OCR
             if display_placeholder:
-                display_placeholder.markdown(f"**📷 [{filename}]** 正在识别图片文字...")
+                display_placeholder.markdown("**📷 [" + filename + "]** 正在识别图片文字...")
             ocr_text = ocr_extract_text(image_bytes)
             if not ocr_text or len(ocr_text.strip()) < 10:
                 if attempt < max_retries:
@@ -833,7 +833,7 @@ def process_single_image(image_bytes: bytes, filename: str, target_subjects: Lis
             
             # 流式解题与分析
             if display_placeholder:
-                display_placeholder.markdown(f"**📷 [{filename}]** 🤔 正在解析题目，AI 正在思考...\n\n")
+                display_placeholder.markdown("**📷 [" + filename + "]** 🤔 正在解析题目，AI 正在思考...\n\n")
             
             # 收集流式输出，实时提取并显示解题步骤（而不是原始JSON）
             full_response = ""

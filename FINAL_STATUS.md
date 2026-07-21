@@ -15,7 +15,7 @@
 
 - 项目文件：11 个核心文件 + docs/
 - Git：所有改动已 push
-- 数据库：demo/demo123 密码已修复，登录可用
+- 数据库：demo/demo123 ✅（d9af7a8 修复密码哈希，本地 + 线上均可用）
 - 本地：http://localhost:8501
 - 线上：https://deepprep.streamlit.app
 

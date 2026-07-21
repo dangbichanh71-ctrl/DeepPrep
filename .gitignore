@@ -11,8 +11,8 @@ build/
 .venv/
 venv/
 
-# 数据库
-*.db
+# 持久化数据库（Demo数据，面试官体验用）
+# mistakes.db 需要在git中保留以便Streamlit Cloud每次启动都有数据
 
 # IDE
 .vscode/

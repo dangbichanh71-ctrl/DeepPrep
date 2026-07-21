@@ -49,7 +49,7 @@
 ### 已完成 ✅
 
 - [x] Git 初始化 + 安全加固（移除硬编码 API Key）
-- [x] GitHub 仓库：`dangbichanh71-ctrl/DeepPrep`（Private，分支 `main`）
+- [x] GitHub 仓库：`dangbichanh71-ctrl/DeepPrep`（Public，分支 `main`）
 - [x] Streamlit Cloud 部署：https://deepprep.streamlit.app
 - [x] README.md（产品介绍风格，含演示账号）
 - [x] 速度优化：prompt 精简，max_tokens 从 3000 降到 1500
@@ -66,6 +66,7 @@
 - [x] 修复多个页面切换崩溃问题（知识图谱卡死、侧边栏 NaN、进度条残留）
 - [x] 产品文档：PRD、用户故事地图、竞品分析（`docs/` 目录）
 - [x] 项目清理：删除 5 个冗余文件，保留 11 个核心文件
+- [x] 数据库持久化修复：Streamlit Cloud 休眠后账号消失，改为 mistakes.db 入库
 
 ### 演示账号
 
@@ -80,7 +81,6 @@
 | 优先级 | 任务 |
 |--------|------|
 | 🔴 当前 | 录制产品演示视频（2-3 分钟） |
-| 🔴 当前 | GitHub 仓库改为 Public |
 | 🔵 后续 | 简历项目描述撰写 + 面试问答准备 |
 
 ### 重要链接
@@ -96,7 +96,7 @@
 1. 不迁移 PostgreSQL（SQLite 够用）
 2. 不做移动端深度适配（面试官在 PC 上看）
 3. 知识分类通过 knowledge_points 细化，不扩展学科大类
-4. GitHub 先 Private 后 Public（文档完善后再公开）
+4. GitHub 先 Private 后 Public（文档完善后再公开，现已改为 Public）
 5. 演示视频在阶段三（产品打磨完成后）录制
 6. ai_utils.py 已加 frequency_penalty=0.5 + presence_penalty=0.3 + temperature 调至 0.3，修复 LLM 重复输出死循环
 7. 代码审查发现的 4 处问题已全部修复（clean_latex 重复定义、死代码、SQLite 连接泄漏、重复代码提取）

@@ -135,6 +135,19 @@ SESSION_DEFAULTS = {
 
 
 # ==================== 基础工具函数 ====================
+def _navigate_to(page_name: str, focus_qid: int = None):
+    """导航回调：设状态后通过 _pending_navigation 触发主循环 rerun。
+    不能直接在回调中调 st.rerun()（Streamlit 1.58 会报 no-op）。
+    """
+    st.session_state.current_page = page_name
+    if focus_qid:
+        st.session_state.focus_question_id = focus_qid
+    st.session_state.selected_knowledge_point = None
+    st.session_state.selected_knowledge_subject = None
+    st.session_state.nav_radio = page_name  # 同步 radio 组件状态
+    st.session_state._pending_navigation = True
+
+
 def init_session_state() -> None:
     """初始化所有需要的 session_state 变量"""
     for key, default in SESSION_DEFAULTS.items():
@@ -596,7 +609,6 @@ def render_sidebar() -> None:
             index=current_index,
             key="nav_radio"
         )
-        
         if selected_page != st.session_state.current_page:
             st.session_state.current_page = selected_page
             st.rerun()
@@ -665,6 +677,9 @@ def _get_dashboard_data(current_user_id: int):
 
 def _kg_safe_init():
     """安全初始化：清理复习模式残留状态，防止知识图谱页面卡死"""
+    # 关键修复：当前正在复习页面时，不能清空复习状态
+    if st.session_state.get("current_page") == "🔄 沉浸式复习":
+        return
     review_keys = [
         "current_review_qid", "last_question_id",
         "current_result", "current_question_index", "review_question_list"
@@ -752,10 +767,12 @@ def render_dashboard() -> None:
 
     for col, (icon, title, desc, page_name, key) in zip([qc1, qc2, qc3, qc4], shortcuts):
         with col:
-            btn_label = icon + "\n" + title
-            if st.button(btn_label, key=f"quick_{key}", use_container_width=True, type="primary"):
-                st.session_state.current_page = page_name
-                st.rerun()
+            btn_label = icon + " " + title
+            st.button(
+                btn_label, key=f"quick_{key}",
+                use_container_width=True, type="primary",
+                on_click=_navigate_to, args=(page_name,)
+            )
             st.caption(desc)
 
     st.markdown("---")
@@ -1458,10 +1475,11 @@ def render_mistake_vault() -> None:
                                         st.warning(f"⚠️ 图片加载失败: {str(img_error)}")
                                 
                                 col1, col2 = st.columns(2)
-                                if col1.button("去复习", key=f"go_review_{question.get('id')}"):
-                                    st.session_state.focus_question_id = question.get("id")
-                                    st.session_state.current_page = "🔄 沉浸式复习"
-                                    st.rerun()
+                                col1.button(
+                                    "去复习", key=f"go_review_{question.get('id')}",
+                                    on_click=_navigate_to,
+                                    args=("🔄 沉浸式复习", question.get("id"))
+                                )
                                 if col2.button("🗑️ 删除此题 (已掌握)", key=f"archive_{question.get('id')}"):
                                     try:
                                         archive_question(question.get("id"), archived=True, user_id=current_user_id)
@@ -2697,18 +2715,12 @@ def render_knowledge_graph() -> None:
                                     
                                     # 操作按钮
                                     col1, col2 = st.columns(2)
-                                    if col1.button("去复习", key=f"go_review_kp_{question_id}_{idx}"):
-                                        st.session_state.focus_question_id = question_id
-                                        st.session_state.current_page = "🔄 沉浸式复习"
-                                        st.session_state.selected_knowledge_point = None
-                                        st.session_state.selected_knowledge_subject = None
-                                        st.rerun()
-                                    if col2.button("查看详情", key=f"view_kp_{question_id}_{idx}"):
-                                        st.session_state.focus_question_id = question_id
-                                        st.session_state.current_page = "🗂️ 错题库"
-                                        st.session_state.selected_knowledge_point = None
-                                        st.session_state.selected_knowledge_subject = None
-                                        st.rerun()
+                                    col1.button("去复习", key=f"go_review_kp_{question_id}_{idx}",
+                                                on_click=_navigate_to,
+                                                args=("🔄 沉浸式复习", question_id))
+                                    col2.button("查看详情", key=f"view_kp_{question_id}_{idx}",
+                                                on_click=_navigate_to,
+                                                args=("🗂️ 错题库", question_id))
                                     
                                     st.markdown("</div>", unsafe_allow_html=True)
                                     if idx < len(display_questions) - 1:
@@ -2830,6 +2842,11 @@ def render_learning_stats() -> None:
 st.set_page_config(page_title="DeepPrep", layout="wide", page_icon="📚")
 init_database()
 init_session_state()
+
+# 按钮导航处理：检测到 pending navigation 时执行 rerun
+if st.session_state.get("_pending_navigation"):
+    st.session_state._pending_navigation = False
+    st.rerun()
 
 if not st.session_state.is_logged_in:
     render_login_view()

@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 **👉 线上体验**：https://deepprep.streamlit.app  
-**🎮 演示账号**：`demo` / `demo123`（已预置 5 道错题，可直接体验全部功能）
+**🎮 演示账号**：`罗祎果` / `123456`（已预置 20 道错题，涵盖高等数学、线性代数、专业课、大学英语）
 
 ---
 
@@ -82,7 +82,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-浏览器打开 `http://localhost:8501`，用 `demo / demo123` 登录即可。
+浏览器打开 `http://localhost:8501`，用 `罗祎果 / 123456` 登录即可。
 
 ---
 

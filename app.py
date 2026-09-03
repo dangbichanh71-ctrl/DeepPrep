@@ -384,6 +384,18 @@ def decode_image(image_b64: str) -> bytes:
         raise ValueError("图片解码失败: " + str(e))
 
 
+def _safe_display_image(image_data, caption="题目原图") -> None:
+    """安全显示题目图片：数据缺失或解码失败时提示，而不是让页面崩溃"""
+    try:
+        if not image_data or not isinstance(image_data, str) or len(image_data) < 100:
+            st.warning("⚠️ 题目图片数据缺失或不完整")
+            return
+        image_bytes = decode_image(image_data)
+        st.image(image_bytes, caption=caption, width="stretch")
+    except Exception as e:
+        st.warning("⚠️ 图片无法显示：" + str(e))
+
+
 # ==================== 登录与主题 ====================
 def render_login_view() -> None:
     """渲染登录/注册页面（真实用户鉴权）- 简洁清新风格"""
@@ -1201,7 +1213,7 @@ def render_smart_upload() -> None:
                 st.image(
                     decode_image(result["image_base64"]),
                     caption=f"自动分类：{result['subject']}",
-                    use_column_width=True,
+                    width="stretch",
                 )
             with cols[1]:
                 st.text_area("题目文本", clean_latex(result["question_text"]), height=200, key=f"text_{current_idx}", disabled=True)
@@ -1467,7 +1479,7 @@ def render_mistake_vault() -> None:
                                                     st.image(
                                                         image_bytes,
                                                         caption="题目原图",
-                                                        use_column_width=True,
+                                                        width="stretch",
                                                     )
                                                 except Exception as decode_error:
                                                     st.warning(f"⚠️ 图片解码失败: {str(decode_error)}")
@@ -1682,15 +1694,19 @@ def render_review_mode() -> None:
         
         # 优先显示文本题目（如果有）
         question_text_clean = question.get("question_text_clean", "")
+        question_image = question.get("question_image")
         if question_text_clean:
             st.markdown("### 📝 题目内容")
             st.markdown(format_math_text(question_text_clean), unsafe_allow_html=True)
             # 图片折叠显示
-            with st.expander("🖼️ 查看原图", expanded=False):
-                st.image(decode_image(question["question_image"]), caption="题目原图", use_column_width=True)
-        else:
+            if question_image:
+                with st.expander("🖼️ 查看原图", expanded=False):
+                    _safe_display_image(question_image)
+        elif question_image:
             # 如果没有文本，直接显示图片
-            st.image(decode_image(question["question_image"]), caption="题目原图", use_column_width=True)
+            _safe_display_image(question_image)
+        else:
+            st.info("此题暂无题目内容")
 
     # ========== Stage 1: 'answering' (答题阶段) ==========
     if current_stage == "answering":

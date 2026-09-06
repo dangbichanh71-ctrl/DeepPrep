@@ -21,6 +21,7 @@ from db_manager import (
     init_database,
     add_question,
     get_all_questions,
+    get_active_question_count,
     get_question_by_id,
     get_questions_due_for_review,
     update_question_mastery,
@@ -49,6 +50,13 @@ from ai_utils import (
     chat_with_ai_stream,
     parse_imperfect_json,
 )
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_knowledge_stats(user_id: int):
+    """知识图谱统计缓存：避免每次 rerun 重复查询/聚合（数据变化后最多 60s 内刷新）"""
+    return get_knowledge_stats_by_subject(user_id)
+
 
 # ==================== 常量配置 ====================
 IDENTITY_SUBJECT_MAP: Dict[str, List[str]] = {
@@ -580,9 +588,7 @@ def render_sidebar() -> None:
     mastered_count = 0
     if current_user_id:
         try:
-            questions = get_all_questions(user_id=current_user_id)
-            active_qs = [q for q in questions if q.get("archived", 0) == 0]
-            error_count = len(active_qs)
+            error_count = get_active_question_count(user_id=current_user_id)
             mastered_kps = get_mastered_knowledge(current_user_id)
             mastered_count = len(mastered_kps)
         except Exception:
@@ -2300,7 +2306,7 @@ def render_knowledge_graph() -> None:
             st.write("🔍 调试：准备获取知识点统计")
         
         try:
-            stats = get_knowledge_stats_by_subject(current_user_id)
+            stats = _cached_knowledge_stats(current_user_id)
             if debug_mode:
                 st.write(f"🔍 调试：获取到统计数据，类型: {type(stats)}, 长度: {len(stats) if isinstance(stats, dict) else 'N/A'}")
             

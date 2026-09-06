@@ -378,6 +378,25 @@ def get_all_questions(user_id: int = None) -> List[Dict]:
         return []
 
 
+def get_active_question_count(user_id: int = None) -> int:
+    """获取活跃（未归档）错题数量，仅计数不加载图片，供侧边栏等场景使用"""
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            if user_id is not None:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM questions WHERE user_id = ? AND archived = 0",
+                    (user_id,)
+                )
+            else:
+                cursor.execute("SELECT COUNT(*) FROM questions WHERE archived = 0")
+            row = cursor.fetchone()
+            return row[0] if row else 0
+    except Exception as e:
+        print(f"获取活跃错题数量时出错: {e}")
+        return 0
+
+
 def get_question_by_id(question_id: int, user_id: int = None) -> Optional[Dict]:
     """根据 ID 获取错题"""
     with get_db() as conn:

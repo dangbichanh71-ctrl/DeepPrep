@@ -22,3 +22,10 @@ venv/
 .DS_Store
 Thumbs.db
 mistakes.db.backup
+
+# 临时/实验文件（非项目文件）
+node_modules/
+package.json
+package-lock.json
+test_judge2.js
+ocr_result.txt
